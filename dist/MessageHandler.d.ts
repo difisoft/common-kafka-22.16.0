@@ -1,7 +1,7 @@
-import { IMessage } from "@/types";
+import { IMessage } from "./types";
 import { Models } from "common-model";
-import { SendRequest } from "@/SendRequest";
-import { IKafkaMessage } from "@/StreamHandler";
+import { SendRequest } from "./SendRequest";
+import { IKafkaMessage } from "./StreamHandler";
 declare type HandleResult = Promise<any> | boolean;
 declare type Handle = (msg: IMessage, originalMessage?: IKafkaMessage) => HandleResult;
 declare class MessageHandler {

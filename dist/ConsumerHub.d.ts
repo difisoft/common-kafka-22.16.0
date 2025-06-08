@@ -1,6 +1,6 @@
-import { IConf, IMessage } from "@/types";
-import { Handle } from "@/MessageHandler";
-import { StreamHandler } from "@/StreamHandler";
+import { IConf, IMessage } from "./types";
+import { Handle } from "./MessageHandler";
+import { StreamHandler } from "./StreamHandler";
 export interface IConsumerProcess {
     process(msg: IMessage): void;
 }

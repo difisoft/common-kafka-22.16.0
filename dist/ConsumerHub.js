@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsumerHub = void 0;
-const MessageHandler_1 = require("@/MessageHandler");
-const StreamHandler_1 = require("@/StreamHandler");
+const MessageHandler_1 = require("./MessageHandler");
+const StreamHandler_1 = require("./StreamHandler");
 const common_model_1 = require("common-model");
 class ConsumerHub {
     conf;

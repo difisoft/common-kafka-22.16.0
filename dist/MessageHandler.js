@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MessageHandler = void 0;
 exports.getErrorMessage = getErrorMessage;
 const common_model_1 = require("common-model");
-const SendRequest_1 = require("@/SendRequest");
+const SendRequest_1 = require("./SendRequest");
 class MessageHandler {
     activeRequestMap = {};
     timeoutinMs;
