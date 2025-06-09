@@ -94,7 +94,7 @@ class MessageHandler {
         return; // forwarding. do nothing
       } else {
         const handleError = (err: Error) => {
-          logger.logError(`error while processing request ${msg.transactionId} ${msg.messageId} ${msg.uri}`, err);
+          logger.error(`error while processing request ${msg.transactionId} ${msg.messageId} ${msg.uri}`, err);
           delete this.activeRequestMap[this.getMsgHandlerUniqueId(msg)];
           if (err instanceof Errors.NoForwardResponseError) {
             return;
@@ -138,7 +138,7 @@ class MessageHandler {
         }
       }
     } catch (e) {
-      logger.logError(`error while processing message ${message.topic} ${message.value} ${msgString}`, e);
+      logger.error(`error while processing message ${message.topic} ${message.value} ${msgString}`, e);
     }
   };
 
@@ -156,16 +156,16 @@ function getErrorMessage(err: Error): Models.IResponse {
     const error = err as Errors.GeneralError;
     if (error.isSystemError) {
       if (error.source) {
-        logger.logError('error', error.source);
+        logger.error('error', error.source);
       } else {
-        logger.logError('error', error);
+        logger.error('error', error);
       }
       return Models.createFailResponse(error.code, error.messageParams,
         (error.params && error.params.length > 0) ? error.params : undefined);
     } else if (error instanceof Errors.ForwardError) {
       return {status: error.status};
     } else {
-      logger.logError('error', error);
+      logger.error('error', error);
       return Models.createFailResponse('INTERNAL_SERVER_ERROR');
     }
   } else {

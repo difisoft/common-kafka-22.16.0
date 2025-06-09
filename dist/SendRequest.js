@@ -129,11 +129,11 @@ class SendRequestCommon {
         catch (e) {
             if (!this.handleSendError || !this.handleSendError(e)) {
                 if (e.message.indexOf("Local: Queue full") > -1) {
-                    common_model_1.logger.logError("error while sending the message. exitting...", e);
+                    common_model_1.logger.error("error while sending the message. exitting...", e);
                     process.exit(1);
                 }
                 else {
-                    common_model_1.logger.logError("error while sending the message", e);
+                    common_model_1.logger.error("error while sending the message", e);
                 }
             }
         }
@@ -267,7 +267,7 @@ function getResponse(msg) {
     if (msg.data != null) {
         const response = msg.data;
         if (response.status != null) {
-            throw new common_model_1.Errors.GeneralError(response.status);
+            throw common_model_1.Errors.createFromStatus(response.status);
         }
         else {
             return response.data;

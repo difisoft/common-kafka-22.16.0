@@ -80,7 +80,7 @@ class MessageHandler {
             }
             else {
                 const handleError = (err) => {
-                    common_model_1.logger.logError(`error while processing request ${msg.transactionId} ${msg.messageId} ${msg.uri}`, err);
+                    common_model_1.logger.error(`error while processing request ${msg.transactionId} ${msg.messageId} ${msg.uri}`, err);
                     delete this.activeRequestMap[this.getMsgHandlerUniqueId(msg)];
                     if (err instanceof common_model_1.Errors.NoForwardResponseError) {
                         return;
@@ -115,7 +115,7 @@ class MessageHandler {
             }
         }
         catch (e) {
-            common_model_1.logger.logError(`error while processing message ${message.topic} ${message.value} ${msgString}`, e);
+            common_model_1.logger.error(`error while processing message ${message.topic} ${message.value} ${msgString}`, e);
         }
     };
     getErrorMessage = (error) => {
@@ -131,10 +131,10 @@ function getErrorMessage(err) {
         const error = err;
         if (error.isSystemError) {
             if (error.source) {
-                common_model_1.logger.logError('error', error.source);
+                common_model_1.logger.error('error', error.source);
             }
             else {
-                common_model_1.logger.logError('error', error);
+                common_model_1.logger.error('error', error);
             }
             return common_model_1.Models.createFailResponse(error.code, error.messageParams, (error.params && error.params.length > 0) ? error.params : undefined);
         }
@@ -142,7 +142,7 @@ function getErrorMessage(err) {
             return { status: error.status };
         }
         else {
-            common_model_1.logger.logError('error', error);
+            common_model_1.logger.error('error', error);
             return common_model_1.Models.createFailResponse('INTERNAL_SERVER_ERROR');
         }
     }
