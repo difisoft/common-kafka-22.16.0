@@ -24,7 +24,11 @@ class StreamHandler {
       ...{
         'group.id': conf.clusterId,
         'metadata.broker.list': conf.kafkaUrls.join(),
-        // 'allow.auto.create.topics': true,
+        'auto.offset.reset': 'earliest',
+        'session.timeout.ms': 30000,
+        'heartbeat.interval.ms': 10000,
+        'max.poll.interval.ms': 300000,
+        'request.timeout.ms': 30000,
       }, ...options
     };
 
@@ -33,6 +37,7 @@ class StreamHandler {
     });
 
     this.stream.consumer.on('ready', () => {
+      logger.info('Kafka consumer is ready', { topics });
       if (readyCallback != null) {
         readyCallback();
       }

@@ -11,13 +11,18 @@ class StreamHandler {
             ...{
                 'group.id': conf.clusterId,
                 'metadata.broker.list': conf.kafkaUrls.join(),
-                // 'allow.auto.create.topics': true,
+                'auto.offset.reset': 'earliest',
+                'session.timeout.ms': 30000,
+                'heartbeat.interval.ms': 10000,
+                'max.poll.interval.ms': 300000,
+                'request.timeout.ms': 30000,
             }, ...options
         };
         this.stream = (0, node_rdkafka_1.createReadStream)(ops, topicConf, {
             topics: topics
         });
         this.stream.consumer.on('ready', () => {
+            common_model_1.logger.info('Kafka consumer is ready', { topics });
             if (readyCallback != null) {
                 readyCallback();
             }
