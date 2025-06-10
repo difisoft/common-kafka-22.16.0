@@ -11,19 +11,17 @@ const Kafka = require("node-rdkafka");
 class SendRequestCommon {
     conf;
     handleSendError;
-    readyCallback;
+    readyStatusUpdate;
     messageId = 0;
     producer;
     responseTopic;
     bufferedMessages = [];
-    highLatencyBufferedMessages = [];
-    isReady = false;
-    isHighLatencyReady = false;
+    producerReady = false;
     preferBatch;
-    constructor(conf, handleSendError, producerOptions, topicOptions, readyCallback, preferBatch) {
+    constructor(conf, handleSendError, producerOptions, topicOptions, readyStatusUpdate, preferBatch) {
         this.conf = conf;
         this.handleSendError = handleSendError;
-        this.readyCallback = readyCallback;
+        this.readyStatusUpdate = readyStatusUpdate;
         this.preferBatch = preferBatch ?? false;
         this.responseTopic = `${this.conf.clusterId}.response.${this.conf.clientId}`;
         let ops = {
@@ -60,29 +58,33 @@ class SendRequestCommon {
         });
         this.producer.on("ready", () => {
             common_model_1.logger.info(this.preferBatch ? "high latency producer ready" : "low latency producer ready");
-            this.isReady = true;
-            this.readyCallback?.();
+            this.changeProducerStatus(true);
             this.bufferedMessages.forEach(this.reallySendMessage);
         });
         this.producer.on("event.error", (err) => {
+            this.changeProducerStatus(false);
             common_model_1.logger.error("producer error", err);
         });
+    }
+    changeProducerStatus(isReady) {
+        this.producerReady = isReady;
+        this.readyStatusUpdate?.(this.producerReady);
     }
     getResponseTopic() {
         return this.responseTopic;
     }
-    sendMessage(transactionId, topic, uri, data, highLatency = true) {
+    sendMessage(transactionId, topic, uri, data) {
         const message = this.createMessage(transactionId, topic, uri, data);
-        this.sendMessageCheckReady(message, highLatency);
+        this.sendMessageCheckReady(message);
     }
     ;
-    sendRaw(topic, data, highLatency = true) {
+    sendRaw(topic, data) {
         const message = {
             raw: true,
             message: data,
             topic: topic,
         };
-        this.sendMessageCheckReady(message, highLatency);
+        this.sendMessageCheckReady(message);
     }
     ;
     sendForwardMessage(originMessage, newTopic, newUri) {
@@ -91,26 +93,18 @@ class SendRequestCommon {
             message: originMessage
         };
         message.message.uri = newUri;
-        this.sendMessageCheckReady(message, false);
+        this.sendMessageCheckReady(message);
     }
     ;
     sendResponse(transactionId, messageId, topic, uri, data) {
         const message = this.createMessage(transactionId, topic, uri, data, types_1.MessageType.RESPONSE, undefined, undefined, messageId);
-        this.sendMessageCheckReady(message, false);
+        this.sendMessageCheckReady(message);
     }
     ;
-    sendMessageCheckReady(message, highLatency) {
-        if (highLatency) {
-            if (!this.isHighLatencyReady) {
-                this.highLatencyBufferedMessages.push(message);
-                return;
-            }
-        }
-        else {
-            if (!this.isReady) {
-                this.bufferedMessages.push(message);
-                return;
-            }
+    sendMessageCheckReady(message) {
+        if (!this.producerReady) {
+            this.bufferedMessages.push(message);
+            return;
         }
         this.reallySendMessage(message);
     }
@@ -172,6 +166,7 @@ exports.SendRequestCommon = SendRequestCommon;
 class SendRequest extends SendRequestCommon {
     requestedMessages = new Map();
     expiredIn = 0;
+    consumerReady = false;
     constructor(conf, consumerOptions, initListener = true, topicConf = {}, handleSendError, producerOptions, readyCallback, expiredIn, preferBatch) {
         super(conf, handleSendError, producerOptions, topicConf, readyCallback, preferBatch);
         this.expiredIn = expiredIn ? expiredIn : 10000;
@@ -180,9 +175,21 @@ class SendRequest extends SendRequestCommon {
             const topicOps = { ...topicConf, "auto.offset.reset": "earliest" };
             new StreamHandler_1.StreamHandler(this.conf, consumerOptions, [this.responseTopic], (data) => this.handlerResponse(data), topicOps, () => {
                 common_model_1.logger.info("response consumer ready");
-                this.readyCallback?.();
+                this.consumerReady = true;
+                this.fireStatus();
             });
         }
+        else {
+            this.consumerReady = true;
+            this.fireStatus();
+        }
+    }
+    changeProducerStatus(isReady) {
+        this.producerReady = isReady;
+        this.fireStatus();
+    }
+    fireStatus() {
+        this.readyStatusUpdate?.(this.consumerReady && this.producerReady);
     }
     async sendRequest(transactionId, topic, uri, data, timeout) {
         return this.sendRequestAsync(transactionId, topic, uri, data, timeout);
@@ -197,7 +204,7 @@ class SendRequest extends SendRequestCommon {
         const message = this.createMessage(transactionId, topic, uri, data, types_1.MessageType.REQUEST, this.responseTopic, "REQUEST_RESPONSE", undefined, timeout);
         message.subject = subject;
         message.timeout = timeout;
-        if (!this.isReady) {
+        if (!this.producerReady) {
             this.bufferedMessages.push(message);
         }
         else {

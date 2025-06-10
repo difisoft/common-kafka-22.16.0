@@ -8,9 +8,7 @@ class SendRequestCommon {
   protected producer: any;
   protected readonly responseTopic: string;
   protected bufferedMessages: ISendMessage[] = [];
-  protected highLatencyBufferedMessages: ISendMessage[] = [];
-  protected isReady: boolean = false;
-  protected isHighLatencyReady: boolean = false;
+  protected producerReady: boolean = false;
   protected preferBatch: boolean;
 
   constructor(
@@ -18,7 +16,7 @@ class SendRequestCommon {
     protected handleSendError?: (e: Error) => boolean,
     producerOptions?: any,
     topicOptions?: any,
-    protected readyCallback?: () => void,
+    protected readyStatusUpdate?: (isReady: boolean) => void,
     preferBatch?: boolean
   ) {
     this.preferBatch = preferBatch ?? false;
@@ -59,31 +57,36 @@ class SendRequestCommon {
     });
     this.producer.on("ready", () => {
       logger.info(this.preferBatch ? "high latency producer ready" : "low latency producer ready");
-      this.isReady = true;
-      this.readyCallback?.();
+      this.changeProducerStatus(true);
       this.bufferedMessages.forEach(this.reallySendMessage);
     });
     this.producer.on("event.error", (err: any) => {
+      this.changeProducerStatus(false);
       logger.error("producer error", err);
     });
+  }
+
+  protected changeProducerStatus(isReady: boolean) {
+    this.producerReady = isReady;
+    this.readyStatusUpdate?.(this.producerReady);
   }
 
   public getResponseTopic(): string {
     return this.responseTopic;
   }
 
-  public sendMessage(transactionId: string, topic: string, uri: string, data: any, highLatency: boolean = true): void {
+  public sendMessage(transactionId: string, topic: string, uri: string, data: any): void {
     const message: ISendMessage = this.createMessage(transactionId, topic, uri, data);
-    this.sendMessageCheckReady(message, highLatency);
+    this.sendMessageCheckReady(message);
   };
 
-  public sendRaw(topic: string, data: any, highLatency: boolean = true): void {
+  public sendRaw(topic: string, data: any): void {
     const message: ISendMessage = {
       raw: true,
       message: data,
       topic: topic,
     };
-    this.sendMessageCheckReady(message, highLatency);
+    this.sendMessageCheckReady(message);
   };
 
   public sendForwardMessage(originMessage: any, newTopic: string, newUri: string): void {
@@ -92,26 +95,19 @@ class SendRequestCommon {
       message: originMessage
     };
     message.message.uri = newUri;
-    this.sendMessageCheckReady(message, false);
+    this.sendMessageCheckReady(message);
   };
 
   public sendResponse(transactionId: string | number, messageId: string, topic: string, uri: string, data: any): void {
     const message: ISendMessage = this.createMessage(transactionId, topic, uri, data, MessageType.RESPONSE,
       undefined, undefined, messageId);
-    this.sendMessageCheckReady(message, false);
+    this.sendMessageCheckReady(message);
   };
 
-  public sendMessageCheckReady(message: ISendMessage, highLatency: boolean) {
-    if (highLatency) {
-      if (!this.isHighLatencyReady) {
-        this.highLatencyBufferedMessages.push(message);
-        return;
-      }
-    } else {
-      if (!this.isReady) {
-        this.bufferedMessages.push(message);
-        return;
-      }
+  public sendMessageCheckReady(message: ISendMessage) {
+    if (!this.producerReady) {
+      this.bufferedMessages.push(message);
+      return;
     }
     this.reallySendMessage(message);
   }
@@ -178,6 +174,8 @@ class SendRequest extends SendRequestCommon {
   private requestedMessages: Map<string, ISendMessage> = new Map<string, ISendMessage>();
   private readonly expiredIn: number = 0;
 
+  private consumerReady: boolean = false;
+
   constructor(
     conf: IConf,
     consumerOptions: any,
@@ -185,7 +183,7 @@ class SendRequest extends SendRequestCommon {
     topicConf: any = {},
     handleSendError?: (e: Error) => boolean,
     producerOptions?: any,
-    readyCallback?: () => void,
+    readyCallback?: (isReady: boolean) => void,
     expiredIn?: number,
     preferBatch?: boolean
   ) {
@@ -197,10 +195,23 @@ class SendRequest extends SendRequestCommon {
       new StreamHandler(this.conf, consumerOptions, [this.responseTopic]
         , (data: IKafkaMessage) => this.handlerResponse(data), topicOps, () => {
           logger.info("response consumer ready");
-          this.readyCallback?.();
+          this.consumerReady = true;
+          this.fireStatus();
         }
       );
+    } else {
+      this.consumerReady = true;
+      this.fireStatus();
     }
+  }
+
+  protected changeProducerStatus(isReady: boolean) {
+    this.producerReady = isReady;
+    this.fireStatus();
+  }
+
+  private fireStatus() {
+    this.readyStatusUpdate?.(this.consumerReady && this.producerReady);
   }
 
   public async sendRequest(transactionId: string, topic: string, uri: string, data: any, timeout?: number): Promise<IMessage> {
@@ -218,7 +229,7 @@ class SendRequest extends SendRequestCommon {
       , this.responseTopic, "REQUEST_RESPONSE", undefined, timeout);
     message.subject = subject;
     message.timeout = timeout;
-    if (!this.isReady) {
+    if (!this.producerReady) {
       this.bufferedMessages.push(message);
     } else {
       this.reallySendMessage(message);
@@ -281,7 +292,7 @@ function create(conf: IConf, consumerOptions: any,
                 initResponseListener: boolean = true,
                 topicConf: any = {},
                 producerOptions: any = {},
-                readyCallback?: () => void
+                readyCallback?: (isReady: boolean) => void
 ): void {
   instance = new SendRequest(conf, consumerOptions, initResponseListener, topicConf, undefined, producerOptions, readyCallback);
 }

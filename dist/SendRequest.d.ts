@@ -2,22 +2,21 @@ import { IConf, IMessage, ISendMessage, MessageType, PromiseState } from "./type
 declare class SendRequestCommon {
     protected conf: IConf;
     protected handleSendError?: ((e: Error) => boolean) | undefined;
-    protected readyCallback?: (() => void) | undefined;
+    protected readyStatusUpdate?: ((isReady: boolean) => void) | undefined;
     protected messageId: number;
     protected producer: any;
     protected readonly responseTopic: string;
     protected bufferedMessages: ISendMessage[];
-    protected highLatencyBufferedMessages: ISendMessage[];
-    protected isReady: boolean;
-    protected isHighLatencyReady: boolean;
+    protected producerReady: boolean;
     protected preferBatch: boolean;
-    constructor(conf: IConf, handleSendError?: ((e: Error) => boolean) | undefined, producerOptions?: any, topicOptions?: any, readyCallback?: (() => void) | undefined, preferBatch?: boolean);
+    constructor(conf: IConf, handleSendError?: ((e: Error) => boolean) | undefined, producerOptions?: any, topicOptions?: any, readyStatusUpdate?: ((isReady: boolean) => void) | undefined, preferBatch?: boolean);
+    protected changeProducerStatus(isReady: boolean): void;
     getResponseTopic(): string;
-    sendMessage(transactionId: string, topic: string, uri: string, data: any, highLatency?: boolean): void;
-    sendRaw(topic: string, data: any, highLatency?: boolean): void;
+    sendMessage(transactionId: string, topic: string, uri: string, data: any): void;
+    sendRaw(topic: string, data: any): void;
     sendForwardMessage(originMessage: any, newTopic: string, newUri: string): void;
     sendResponse(transactionId: string | number, messageId: string, topic: string, uri: string, data: any): void;
-    sendMessageCheckReady(message: ISendMessage, highLatency: boolean): void;
+    sendMessageCheckReady(message: ISendMessage): void;
     protected timeout(message: ISendMessage): void;
     protected doReallySendMessage(message: ISendMessage): void;
     protected reallySendMessage: (message: ISendMessage) => void;
@@ -27,7 +26,10 @@ declare class SendRequestCommon {
 declare class SendRequest extends SendRequestCommon {
     private requestedMessages;
     private readonly expiredIn;
-    constructor(conf: IConf, consumerOptions: any, initListener?: boolean, topicConf?: any, handleSendError?: (e: Error) => boolean, producerOptions?: any, readyCallback?: () => void, expiredIn?: number, preferBatch?: boolean);
+    private consumerReady;
+    constructor(conf: IConf, consumerOptions: any, initListener?: boolean, topicConf?: any, handleSendError?: (e: Error) => boolean, producerOptions?: any, readyCallback?: (isReady: boolean) => void, expiredIn?: number, preferBatch?: boolean);
+    protected changeProducerStatus(isReady: boolean): void;
+    private fireStatus;
     sendRequest(transactionId: string, topic: string, uri: string, data: any, timeout?: number): Promise<IMessage>;
     sendRequestAsync(transactionId: string, topic: string, uri: string, data: any, timeout?: number): Promise<IMessage>;
     sendRequestBase(transactionId: string, topic: string, uri: string, data: any, subject: PromiseState<IMessage>, timeout?: number): void;
@@ -37,7 +39,7 @@ declare class SendRequest extends SendRequestCommon {
     private respondError;
     private handlerResponse;
 }
-declare function create(conf: IConf, consumerOptions: any, initResponseListener?: boolean, topicConf?: any, producerOptions?: any, readyCallback?: () => void): void;
+declare function create(conf: IConf, consumerOptions: any, initResponseListener?: boolean, topicConf?: any, producerOptions?: any, readyCallback?: (isReady: boolean) => void): void;
 declare function getInstance(): SendRequest;
 declare function getResponse<T>(msg: IMessage): T;
 export { SendRequest, SendRequestCommon, create, getInstance, getResponse };
